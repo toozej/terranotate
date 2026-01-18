@@ -1,5 +1,5 @@
 # Cosign
-golang-starter.key
+terranotate.key
 cosign.key
 *.sig
 

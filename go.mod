@@ -1,4 +1,4 @@
-module github.com/toozej/golang-starter
+module github.com/toozej/terranotate
 
 go 1.25
 

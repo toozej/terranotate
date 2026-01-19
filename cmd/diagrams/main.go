@@ -62,14 +62,14 @@ func main() {
 // The diagram illustrates:
 //   - User interaction with the CLI application
 //   - Configuration management flow
-//   - Integration with the starter package
+//   - Integration with the application logic (parser/validator/fixer)
 //   - Logging system integration
 //
 // The diagram is rendered in top-to-bottom (TB) direction and saved as
 // "architecture.dot" in the current working directory. The function will
 // terminate the program with log.Fatal if diagram creation or rendering fails.
 func generateArchitectureDiagram() {
-	d, err := diagram.New(diagram.Filename("architecture"), diagram.Label("Golang Starter Architecture"), diagram.Direction("TB"))
+	d, err := diagram.New(diagram.Filename("architecture"), diagram.Label("Terranotate Architecture"), diagram.Direction("TB"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,13 +78,13 @@ func generateArchitectureDiagram() {
 	user := generic.Blank.Blank(diagram.NodeLabel("User"))
 	cli := programming.Language.Go(diagram.NodeLabel("CLI Application"))
 	config := generic.Blank.Blank(diagram.NodeLabel("Configuration\n(env/godotenv)"))
-	starter := programming.Language.Go(diagram.NodeLabel("Starter Package"))
+	app := programming.Language.Go(diagram.NodeLabel("Application Logic\n(App/Parser/Validator/Fixer)"))
 	logging := generic.Blank.Blank(diagram.NodeLabel("Logging\n(logrus)"))
 
 	// Create connections
 	d.Connect(user, cli, diagram.Forward())
 	d.Connect(cli, config, diagram.Forward())
-	d.Connect(cli, starter, diagram.Forward())
+	d.Connect(cli, app, diagram.Forward())
 	d.Connect(cli, logging, diagram.Forward())
 
 	if err := d.Render(); err != nil {
@@ -98,14 +98,14 @@ func generateArchitectureDiagram() {
 // The diagram illustrates:
 //   - main.go as the entry point
 //   - cmd/terranotate package handling CLI operations
-//   - Integration with configuration, starter, version, and man packages
+//   - Integration with internal packages (app, parser, validator, fixer)
 //   - Data flow between components
 //
 // The diagram is rendered in left-to-right (LR) direction and saved as
 // "components.dot" in the current working directory. The function will
 // terminate the program with log.Fatal if diagram creation or rendering fails.
 func generateComponentDiagram() {
-	d, err := diagram.New(diagram.Filename("components"), diagram.Label("Golang Starter Components"), diagram.Direction("LR"))
+	d, err := diagram.New(diagram.Filename("components"), diagram.Label("Terranotate Components"), diagram.Direction("LR"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -114,16 +114,36 @@ func generateComponentDiagram() {
 	main := programming.Language.Go(diagram.NodeLabel("main.go"))
 	rootCmd := programming.Language.Go(diagram.NodeLabel("cmd/terranotate\nroot.go"))
 	config := programming.Language.Go(diagram.NodeLabel("pkg/config\nconfig.go"))
-	starter := programming.Language.Go(diagram.NodeLabel("internal/starter\nstarter.go"))
+
+	// Internal packages
+	app := programming.Language.Go(diagram.NodeLabel("internal/app"))
+	parser := programming.Language.Go(diagram.NodeLabel("internal/parser"))
+	validator := programming.Language.Go(diagram.NodeLabel("internal/validator"))
+	fixer := programming.Language.Go(diagram.NodeLabel("internal/fixer"))
+
+	// Other packages
 	version := programming.Language.Go(diagram.NodeLabel("pkg/version\nversion.go"))
 	man := programming.Language.Go(diagram.NodeLabel("pkg/man\nman.go"))
 
 	// Create connections showing the flow
 	d.Connect(main, rootCmd, diagram.Forward())
 	d.Connect(rootCmd, config, diagram.Forward())
-	d.Connect(rootCmd, starter, diagram.Forward())
+	d.Connect(rootCmd, app, diagram.Forward())
 	d.Connect(rootCmd, version, diagram.Forward())
 	d.Connect(rootCmd, man, diagram.Forward())
+
+	// App Logic connections
+	d.Connect(app, parser, diagram.Forward())
+	d.Connect(app, validator, diagram.Forward())
+	d.Connect(app, fixer, diagram.Forward())
+
+	// Internal dependencies
+	// Fixer uses parser and validator
+	d.Connect(fixer, parser, diagram.Forward())
+	d.Connect(fixer, validator, diagram.Forward())
+
+	// Validator uses parser
+	d.Connect(validator, parser, diagram.Forward())
 
 	if err := d.Render(); err != nil {
 		log.Fatal(err)

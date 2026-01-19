@@ -50,10 +50,7 @@ import (
 //		Username string `env:"USERNAME"`
 //	}
 type Config struct {
-	// Username specifies the username for application operations.
-	// It is loaded from the USERNAME environment variable.
-	// If not set, defaults to empty string.
-	Username string `env:"USERNAME"`
+	TerraformVersion string `env:"TERRAFORM_VERSION"`
 }
 
 // GetEnvVars loads and returns the application configuration from environment

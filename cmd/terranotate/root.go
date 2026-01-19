@@ -26,7 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/toozej/terranotate/internal/starter"
+	"github.com/toozej/terranotate/internal/tfenv"
 	"github.com/toozej/terranotate/pkg/config"
 	"github.com/toozej/terranotate/pkg/man"
 	"github.com/toozej/terranotate/pkg/version"
@@ -46,25 +46,26 @@ var (
 // the application's structure, flags, and subcommands.
 //
 // The command accepts no positional arguments and delegates its main functionality
-// to the starter package. It supports persistent flags that are inherited by
+// to the subcommands. It supports persistent flags that are inherited by
 // all subcommands.
 var rootCmd = &cobra.Command{
 	Use:              "terranotate",
-	Short:            "golang starter template",
-	Long:             `Golang starter template using cobra, logrus, dotenv and env modules`,
+	Short:            "Terraform Comment Parser and Validator",
+	Long:             `Terraform Comment Parser and Validator using cobra, logrus, dotenv and env modules`,
 	Args:             cobra.ExactArgs(0),
 	PersistentPreRun: rootCmdPreRun,
 	Run:              rootCmdRun,
 }
 
 // rootCmdRun is the main execution function for the root command.
-// It calls the starter package's Run function with the configured username.
 //
 // Parameters:
 //   - cmd: The cobra command being executed
 //   - args: Command-line arguments (unused, as root command takes no args)
 func rootCmdRun(cmd *cobra.Command, args []string) {
-	starter.Run(conf.Username)
+	if err := cmd.Help(); err != nil {
+		fmt.Printf("Error showing help: %v\n", err)
+	}
 }
 
 // rootCmdPreRun performs setup operations before executing the root command.
@@ -79,6 +80,12 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 func rootCmdPreRun(cmd *cobra.Command, args []string) {
 	if debug {
 		log.SetLevel(log.DebugLevel)
+	}
+
+	if conf.TerraformVersion != "" {
+		if err := tfenv.EnsureVersion(conf.TerraformVersion); err != nil {
+			log.Warnf("Failed to ensure Terraform version %s: %v", conf.TerraformVersion, err)
+		}
 	}
 }
 
@@ -120,7 +127,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug-level logging")
 
 	// optional flag for username, overrides env var
-	rootCmd.Flags().StringVarP(&conf.Username, "username", "u", conf.Username, "Username")
+	rootCmd.Flags().StringVarP(&conf.TerraformVersion, "terraform-version", "v", conf.TerraformVersion, "Terraform version")
 
 	// add sub-commands
 	rootCmd.AddCommand(

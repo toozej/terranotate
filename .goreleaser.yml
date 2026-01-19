@@ -94,7 +94,7 @@ dockers_v2:
       "io.artifacthub.package.readme-url": "https://raw.githubusercontent.com/toozej/terranotate/main/README.md"
       "io.artifacthub.package.maintainers": "[{\"name\":\"toozej\"}]"
       "io.artifacthub.package.license": "GPLv3"
-      "org.opencontainers.image.description": "Golang starter template"
+      "org.opencontainers.image.description": "Terraform Comment Parser and Validator"
       "org.opencontainers.image.created": "{{.Date}}"
       "org.opencontainers.image.name": "{{.ProjectName}}"
       "org.opencontainers.image.revision": "{{.FullCommit}}"
@@ -108,7 +108,8 @@ dockers_v2:
     annotations:
       "index,manifest:org.opencontainers.image.authors": "James Tooze https://github.com/toozej/"
       "index,manifest:org.opencontainers.image.created": "{{.Date}}"
-      "index,manifest:org.opencontainers.image.description": "Golang starter template"
+      "index,manifest:org.opencontainers.image.description": "Terraform Comment Parser and\
+        \ Validator"
       "index,manifest:org.opencontainers.image.documentation": "https://raw.githubusercontent.com/toozej/terranotate/main/README.md"
       "index,manifest:org.opencontainers.image.licenses": "GPL-3.0-only"
       "index,manifest:org.opencontainers.image.revision": "{{.FullCommit}}"
@@ -132,7 +133,7 @@ dockers_v2:
       "io.artifacthub.package.readme-url": "https://raw.githubusercontent.com/toozej/terranotate/main/README.md"
       "io.artifacthub.package.maintainers": "[{\"name\":\"toozej\"}]"
       "io.artifacthub.package.license": "GPLv3"
-      "org.opencontainers.image.description": "Golang starter template"
+      "org.opencontainers.image.description": "Terraform Comment Parser and Validator"
       "org.opencontainers.image.created": "{{.Date}}"
       "org.opencontainers.image.name": "{{.ProjectName}}"
       "org.opencontainers.image.revision": "{{.FullCommit}}"
@@ -146,7 +147,8 @@ dockers_v2:
     annotations:
       "index,manifest:org.opencontainers.image.authors": "James Tooze https://github.com/toozej/"
       "index,manifest:org.opencontainers.image.created": "{{.Date}}"
-      "index,manifest:org.opencontainers.image.description": "Golang starter template"
+      "index,manifest:org.opencontainers.image.description": "Terraform Comment Parser and\
+        \ Validator"
       "index,manifest:org.opencontainers.image.documentation": "https://raw.githubusercontent.com/toozej/terranotate/main/README.md"
       "index,manifest:org.opencontainers.image.licenses": "GPL-3.0-only"
       "index,manifest:org.opencontainers.image.revision": "{{.FullCommit}}"
@@ -178,7 +180,7 @@ nfpms:
     id: packages
     homepage: https://github.com/toozej/terranotate
     description: |-
-      Golang starter template
+      Terraform Comment Parser and Validator
     maintainer: toozej
     license: GPLv3
     vendor: terranotate
@@ -221,14 +223,14 @@ nfpms:
 homebrew_casks:
   - name: terranotate
     homepage: https://github.com/toozej/terranotate
-    description: "Golang starter template"
+    description: "Terraform Comment Parser and Validator"
     license: GPLv3
     repository:
       owner: toozej
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     manpages:
-      - "man/terranotate.1.gz"
+      - "manpages/terranotate.1.gz"
     completions:
       bash: "completions/terranotate.bash"
       zsh: "completions/terranotate.zsh"

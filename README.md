@@ -1,4 +1,4 @@
-# terranotate
+# Terranotate - Terraform Comment Parser and Validator
 
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/toozej/terranotate)
 [![Go Report Card](https://goreportcard.com/badge/github.com/toozej/terranotate)](https://goreportcard.com/report/github.com/toozej/terranotate)
@@ -6,51 +6,127 @@
 ![Docker Pulls](https://img.shields.io/docker/pulls/toozej/terranotate)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/toozej/terranotate/total)
 
-Golang starter template
+**Terranotate** is a powerful Go-based tool for parsing, validating, and auto-fixing structured comments in Terraform code. It helps teams enforce documentation standards, compliance requirements, and metadata consistency across their infrastructure as code.
 
-## features of this starter template
-- follows common Golang best practices in terms of repo/project layout, and includes explanations of what goes where in README files
-- Cobra library for CLI handling, Logrus for logging, and GoDotEnv and Env libraries for reading config files already plugged in and ready to expand upon
-- Goreleaser to build Docker images and most standard package types across Linux, MacOS and Windows
-    - also includes auto-generated manpages and shell autocompletions
-- Makefile for easy building, deploying, testing, updating, etc. both Dockerized and using locally installed Golang toolchain
-- docker-compose project for easily hosting built Dockerized Golang project, with optional support for Golang web services
-- scripts to make using the starter template easy, and to update the Golang version when a new one comes out
-- Dev Container with built in Go-related VSCode extensions, and [llm](https://llm.datasette.io/) tool + plugins pre-configured to use GitHub Copilot
-- built-in security scans, vulnerability warnings and auto-updates via Dependabot and GitHub Actions
-- auto-generated documentation
-- pre-commit hooks for ensuring formatting, linting, security checks, etc.
+## Features
 
-## changes required to use this as a starter template
-- generate a GitHub fine-grained access token from https://github.com/settings/tokens?type=beta (used in repo as "GITHUB_TOKEN" and in GitHub Actions Secrets as "GH_TOKEN") with the following read/write permissions:
-    - actions
-    - attestations
-    - code scanning alerts
-    - commit statuses
-    - contents
-    - dependabot alerts
-    - dependabot secrets
-    - deployments
-    - environments
-    - issues
-    - pages
-    - pull requests
-    - repository security advisories
-    - secret scanning alerts
-    - secrets
-    - webhooks
-    - workflows
-- run `use_starter.sh` script to rename project files, generate Cosign artifacts, gather and upload secrets to GitHub Actions, etc.
-    - run `./scripts/use_starter.sh $NEW_PROJECT_NAME_GOES_HERE`
-    - to rename with a different GitHub username `./scripts/use_starter.sh $NEW_PROJECT_NAME_GOES_HERE $GITHUB_USERNAME_GOES_HERE`
-- set up new repository in quay.io web console
-    - (DockerHub and GitHub Container Registry do this automatically on first push/publish)
-    - name must match Git repo name
-    - grant robot user with username stored in QUAY_USERNAME "write" permissions (your quay.io account should already have admin permissions)
-- set built packages visibility in GitHub packages to public
-    - navigate to https://github.com/users/$USERNAME/packages/container/$REPO/settings
-    - scroll down to "Danger Zone"
-    - change visibility to public
+- 🔍 **Parse** - Extract and analyze structured comments from Terraform files
+- ✅ **Validate** - Enforce comment schemas with required fields and type checking
+- 🔧 **Auto-Fix** - Automatically add missing comment blocks with intelligent defaults
+- 📦 **Module Support** - Validate entire modules including sub-modules
+- 🏢 **Workspace Support** - Recursive validation of entire Terraform workspaces
+- 📊 **Rich Reporting** - Clear, actionable error messages with line numbers
+- 🎯 **Flexible Schemas** - YAML-based schema definitions for easy customization
 
-## changes required to update golang version
-- `make update-golang-version`
+## Quick Start
+
+```bash
+# Clone or create project directory
+git clone https://github.com/toozej/terranotate.git
+cd terranotate
+
+# Build the binary
+go build -o terranotate cmd/terranotate/main.go
+# (Or use the installed binary if you have it)
+
+# Verify installation
+./terranotate help
+```
+
+## Commands
+
+### 1. Parse - Extract and Display Comments
+
+```bash
+# Parse and display all comments from a single file
+./terranotate parse examples/example.tf
+```
+
+### 2. Validate - Single File Validation
+
+```bash
+# Validate a single Terraform file against schema
+./terranotate validate examples/example.tf examples/schema.yaml
+```
+
+### 3. Validate Module - Module with Sub-modules
+
+```bash
+# Validate a Terraform module including all sub-modules
+./terranotate validate-module ./examples examples/schema.yaml
+```
+
+### 4. Validate Workspace - Entire Workspace
+
+```bash
+# Validate an entire Terraform workspace recursively
+./terranotate validate-workspace ./examples examples/schema.yaml
+```
+
+### 5. Fix - Auto-Fix Validation Issues
+
+```bash
+# Automatically fix validation issues by adding missing comments
+./terranotate fix examples/example.tf examples/schema.yaml
+```
+
+## Documentation
+
+- [API Usage](docs/api-usage.md)
+- [CI/CD Integration](docs/ci-cd.md)
+- [Advanced Usage & Customization](docs/advanced-usage.md)
+- [Troubleshooting](docs/troubleshooting.md)
+
+## Development
+
+This project uses a standard Go project layout.
+
+### Prerequisites
+- Go 1.25+
+
+### Build
+```bash
+make local-build
+```
+
+### Test
+```bash
+make test
+```
+
+### Lint/Pre-commit
+```bash
+make pre-commit
+```
+
+## Use Cases
+
+### 1. CI/CD Pipeline
+```bash
+# Validate before applying
+./tfparser validate-workspace ./infrastructure schema.yaml
+if [ $? -eq 0 ]; then
+    terraform plan
+fi
+```
+
+### 2. Pre-commit Hook
+```bash
+#!/bin/bash
+# Validate all changed modules
+for module_dir in $(find . -name "*.tf" -exec dirname {} \; | sort -u); do
+    ./tfparser validate-module "$module_dir" schema.yaml || exit 1
+done
+```
+
+### 3. Module Development
+```bash
+# Validate during module development
+./tfparser validate-module ./modules/my-new-module schema.yaml
+```
+
+### 4. Workspace Compliance Check
+```bash
+# Check entire workspace for compliance
+./tfparser validate-workspace ./production schema.yaml > compliance-report.txt
+```

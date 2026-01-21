@@ -22,14 +22,14 @@ func Fix(fs afero.Fs, path, schemaFile string) error {
 	fmt.Printf("Path: %s\n", path)
 	fmt.Printf("Schema file: %s\n\n", schemaFile)
 
-	info, err := os.Stat(path)
+	info, err := fs.Stat(path)
 	if err != nil {
 		return fmt.Errorf("failed to stat path: %w", err)
 	}
 
 	var files []string
 	if info.IsDir() {
-		files, err = findTerraformFiles(path)
+		files, err = findTerraformFiles(fs, path)
 		if err != nil {
 			return fmt.Errorf("failed to find terraform files: %w", err)
 		}
@@ -99,7 +99,7 @@ func fixSingleFile(fs afero.Fs, terraformFile, schemaFile string) (bool, int, er
 	fmt.Printf("  ✅ Created backup: %s\n", backupFile)
 
 	// Load schema for fixer
-	schema, err := loadSchema(schemaFile)
+	schema, err := loadSchema(fs, schemaFile)
 	if err != nil {
 		return false, 0, fmt.Errorf("failed to parse schema for fixer: %w", err)
 	}
@@ -136,10 +136,10 @@ func fixSingleFile(fs afero.Fs, terraformFile, schemaFile string) (bool, int, er
 	return true, fixCount, nil
 }
 
-func loadSchema(schemaFile string) (validator.ValidationSchema, error) {
+func loadSchema(fs afero.Fs, schemaFile string) (validator.ValidationSchema, error) {
 	var schema validator.ValidationSchema
 	// #nosec G304 - Schema file provided by user
-	data, err := os.ReadFile(schemaFile)
+	data, err := afero.ReadFile(fs, schemaFile)
 	if err != nil {
 		return schema, err
 	}
@@ -151,9 +151,9 @@ func loadSchema(schemaFile string) (validator.ValidationSchema, error) {
 	return schema, nil
 }
 
-func findTerraformFiles(root string) ([]string, error) {
+func findTerraformFiles(fs afero.Fs, root string) ([]string, error) {
 	var files []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := afero.Walk(fs, root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -170,4 +170,78 @@ func findTerraformFiles(root string) ([]string, error) {
 		return nil
 	})
 	return files, err
+}
+
+// RevertFix reverts files to their backup versions
+func RevertFix(fs afero.Fs, path string) error {
+	fmt.Println("=================================================")
+	fmt.Println("Terranotate - Revert to Backup Files")
+	fmt.Println("=================================================")
+	fmt.Printf("Path: %s\n\n", path)
+
+	info, err := fs.Stat(path)
+	if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	}
+
+	var filesToRevert []string
+	if info.IsDir() {
+		// Find all .bak files in the directory
+		err := afero.Walk(fs, path, func(file string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() && strings.HasSuffix(file, ".bak") {
+				filesToRevert = append(filesToRevert, file)
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed to find backup files: %w", err)
+		}
+	} else {
+		// Single file - check if corresponding .bak exists
+		backupFile := path + ".bak"
+		exists, err := afero.Exists(fs, backupFile)
+		if err != nil {
+			return fmt.Errorf("failed to check for backup file: %w", err)
+		}
+		if exists {
+			filesToRevert = append(filesToRevert, backupFile)
+		}
+	}
+
+	if len(filesToRevert) == 0 {
+		fmt.Println("No backup files found to revert.")
+		return nil
+	}
+
+	fmt.Printf("Found %d backup file(s) to revert.\n\n", len(filesToRevert))
+
+	revertCount := 0
+	for _, backupFile := range filesToRevert {
+		originalFile := strings.TrimSuffix(backupFile, ".bak")
+		fmt.Printf("Reverting: %s\n", originalFile)
+
+		// Copy backup to original
+		if err := fixer.CopyFile(fs, backupFile, originalFile); err != nil {
+			log.Printf("  ⚠️  Warning: Failed to revert %s: %v", originalFile, err)
+			continue
+		}
+
+		// Remove backup file
+		if err := fs.Remove(backupFile); err != nil {
+			log.Printf("  ⚠️  Warning: Failed to remove backup %s: %v", backupFile, err)
+			continue
+		}
+
+		fmt.Printf("  ✅ Reverted %s\n", originalFile)
+		revertCount++
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 50))
+	fmt.Printf("Revert Summary: %d file(s) reverted successfully\n", revertCount)
+	fmt.Println(strings.Repeat("=", 50))
+
+	return nil
 }

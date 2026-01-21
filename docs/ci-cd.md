@@ -45,6 +45,6 @@ echo "Validating Terraform files..."
 
 # Validate all changed modules
 for module_dir in $(find . -name "*.tf" -exec dirname {} \; | sort -u); do
-    ./terranotate validate-module "$module_dir" examples/schema.yaml || exit 1
+    ./terranotate validate "$module_dir" examples/schema.yaml || exit 1
 done
 ```

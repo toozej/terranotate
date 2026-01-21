@@ -50,6 +50,179 @@ func Validate(fs afero.Fs, terraformFile, schemaFile string) error {
 	return nil
 }
 
+// ValidateAuto automatically detects the type of path and validates accordingly
+func ValidateAuto(fs afero.Fs, path, schemaFile string) error {
+	// Check if path exists
+	info, err := fs.Stat(path)
+	if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	}
+
+	// If it's a single file, validate as single file
+	if !info.IsDir() {
+		return Validate(fs, path, schemaFile)
+	}
+
+	// It's a directory - detect whether it's a module or workspace
+	detectedType := detectDirectoryType(fs, path)
+
+	switch detectedType {
+	case "workspace":
+		fmt.Println("🔍 Auto-detected: Terraform Workspace")
+		return ValidateWorkspace(fs, path, schemaFile)
+	case "module":
+		fmt.Println("🔍 Auto-detected: Terraform Module")
+		return ValidateModule(fs, path, schemaFile)
+	default:
+		// Default to single directory validation (treat as simple terraform directory)
+		fmt.Println("🔍 Auto-detected: Terraform Directory")
+		return validateDirectory(fs, path, schemaFile)
+	}
+}
+
+// detectDirectoryType determines if a directory is a module, workspace, or simple directory
+func detectDirectoryType(fs afero.Fs, path string) string {
+	// Check for modules/ subdirectory (indicates this is likely a module)
+	modulesPath := filepath.Join(path, "modules")
+	if info, err := fs.Stat(modulesPath); err == nil && info.IsDir() {
+		return "module"
+	}
+
+	// Check if path itself is inside a modules/ directory
+	if strings.Contains(path, string(filepath.Separator)+"modules"+string(filepath.Separator)) {
+		return "module"
+	}
+
+	// Check for typical workspace indicators
+	// - environments/ directory
+	// - Multiple terraform state configurations
+	// - infrastructure/ directory (common workspace pattern)
+	workspaceIndicators := []string{"environments", "infrastructure", "env"}
+	for _, indicator := range workspaceIndicators {
+		indicatorPath := filepath.Join(path, indicator)
+		if info, err := fs.Stat(indicatorPath); err == nil && info.IsDir() {
+			// Check if this directory has subdirectories (environments)
+			if hasSubdirectories(fs, indicatorPath) {
+				return "workspace"
+			}
+		}
+	}
+
+	// If we find multiple terraform directories at the top level, treat as workspace
+	terraformDirs := 0
+	entries, err := afero.ReadDir(fs, path)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+				entryPath := filepath.Join(path, entry.Name())
+				if hasTerraformFiles(fs, entryPath) {
+					terraformDirs++
+				}
+			}
+		}
+		if terraformDirs > 2 {
+			return "workspace"
+		}
+	}
+
+	// Default to simple directory
+	return "directory"
+}
+
+// hasSubdirectories checks if a directory contains subdirectories
+func hasSubdirectories(fs afero.Fs, path string) bool {
+	entries, err := afero.ReadDir(fs, path)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+			return true
+		}
+	}
+	return false
+}
+
+// hasTerraformFiles checks if a directory contains any .tf files
+func hasTerraformFiles(fs afero.Fs, path string) bool {
+	entries, err := afero.ReadDir(fs, path)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tf") {
+			return true
+		}
+	}
+	return false
+}
+
+// validateDirectory validates all .tf files in a single directory (non-recursive)
+func validateDirectory(fs afero.Fs, dir, schemaFile string) error {
+	fmt.Println("=================================================")
+	fmt.Println("Terranotate - Directory Validation")
+	fmt.Println("=================================================")
+	fmt.Printf("Directory: %s\n", dir)
+	fmt.Printf("Schema file: %s\n\n", schemaFile)
+
+	// Find .tf files in the directory (non-recursive)
+	entries, err := afero.ReadDir(fs, dir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var tfFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tf") {
+			tfFiles = append(tfFiles, filepath.Join(dir, entry.Name()))
+		}
+	}
+
+	if len(tfFiles) == 0 {
+		return fmt.Errorf("no Terraform files found in directory: %s", dir)
+	}
+
+	fmt.Printf("Found %d Terraform file(s):\n", len(tfFiles))
+	for _, file := range tfFiles {
+		fmt.Printf("  - %s\n", filepath.Base(file))
+	}
+	fmt.Println()
+
+	// Parse and validate all files
+	prefixes := []string{"@metadata", "@docs", "@validation", "@config"}
+	p := parser.NewCommentParser(fs, prefixes)
+
+	var allResources []parser.TerraformResource
+	for _, file := range tfFiles {
+		resources, err := p.ParseFile(file)
+		if err != nil {
+			log.Printf("Warning: Failed to parse %s: %v", file, err)
+			continue
+		}
+		allResources = append(allResources, resources...)
+	}
+
+	fmt.Printf("Parsed %d total resources\n", len(allResources))
+
+	// Load and validate against schema
+	v, err := validator.NewSchemaValidator(fs, schemaFile)
+	if err != nil {
+		return fmt.Errorf("failed to load schema: %w", err)
+	}
+
+	fmt.Println("Validating against schema...")
+
+	result := v.ValidateResources(allResources)
+
+	validator.PrintValidationResults(result)
+
+	if !result.Passed {
+		return fmt.Errorf("\n💡 Tip: Run 'terranotate fix %s %s' to auto-fix some issues", dir, schemaFile)
+	}
+
+	return nil
+}
+
 // ValidateModule implements the validate-module command logic
 func ValidateModule(fs afero.Fs, moduleDir, schemaFile string) error {
 	fmt.Println("=======================================================")
@@ -59,12 +232,12 @@ func ValidateModule(fs afero.Fs, moduleDir, schemaFile string) error {
 	fmt.Printf("Schema file: %s\n\n", schemaFile)
 
 	// Validate the module structure
-	if err := validateModuleStructure(moduleDir); err != nil {
+	if err := validateModuleStructure(fs, moduleDir); err != nil {
 		return fmt.Errorf("invalid module structure: %w", err)
 	}
 
 	// Find all Terraform files in the module and sub-modules
-	tfFiles, err := findModuleTerraformFiles(moduleDir)
+	tfFiles, err := findModuleTerraformFiles(fs, moduleDir)
 	if err != nil {
 		return fmt.Errorf("failed to scan module directory: %w", err)
 	}
@@ -101,7 +274,7 @@ func ValidateWorkspace(fs afero.Fs, workspaceDir, schemaFile string) error {
 	fmt.Printf("Schema file: %s\n\n", schemaFile)
 
 	// Find all Terraform files in the workspace
-	tfFiles, err := findWorkspaceTerraformFiles(workspaceDir)
+	tfFiles, err := findWorkspaceTerraformFiles(fs, workspaceDir)
 	if err != nil {
 		return fmt.Errorf("failed to scan workspace directory: %w", err)
 	}
@@ -136,8 +309,8 @@ func ValidateWorkspace(fs afero.Fs, workspaceDir, schemaFile string) error {
 
 // Helper functions
 
-func validateModuleStructure(moduleDir string) error {
-	info, err := os.Stat(moduleDir)
+func validateModuleStructure(fs afero.Fs, moduleDir string) error {
+	info, err := fs.Stat(moduleDir)
 	if err != nil {
 		return fmt.Errorf("directory does not exist: %s", moduleDir)
 	}
@@ -145,7 +318,7 @@ func validateModuleStructure(moduleDir string) error {
 		return fmt.Errorf("not a directory: %s", moduleDir)
 	}
 
-	entries, err := os.ReadDir(moduleDir)
+	entries, err := afero.ReadDir(fs, moduleDir)
 	if err != nil {
 		return err
 	}
@@ -165,20 +338,24 @@ func validateModuleStructure(moduleDir string) error {
 	return nil
 }
 
-func findModuleTerraformFiles(moduleDir string) ([]string, error) {
+func findModuleTerraformFiles(fs afero.Fs, moduleDir string) ([]string, error) {
 	var tfFiles []string
 
 	// Get files in the root module
-	rootFiles, err := filepath.Glob(filepath.Join(moduleDir, "*.tf"))
+	entries, err := afero.ReadDir(fs, moduleDir)
 	if err != nil {
 		return nil, err
 	}
-	tfFiles = append(tfFiles, rootFiles...)
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tf") {
+			tfFiles = append(tfFiles, filepath.Join(moduleDir, entry.Name()))
+		}
+	}
 
 	// Check for modules subdirectory
 	modulesDir := filepath.Join(moduleDir, "modules")
-	if info, err := os.Stat(modulesDir); err == nil && info.IsDir() {
-		err := filepath.Walk(modulesDir, func(path string, info os.FileInfo, err error) error {
+	if info, err := fs.Stat(modulesDir); err == nil && info.IsDir() {
+		err := afero.Walk(fs, modulesDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -195,10 +372,10 @@ func findModuleTerraformFiles(moduleDir string) ([]string, error) {
 	return tfFiles, nil
 }
 
-func findWorkspaceTerraformFiles(workspaceDir string) ([]string, error) {
+func findWorkspaceTerraformFiles(fs afero.Fs, workspaceDir string) ([]string, error) {
 	var tfFiles []string
 
-	err := filepath.Walk(workspaceDir, func(path string, info os.FileInfo, err error) error {
+	err := afero.Walk(fs, workspaceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

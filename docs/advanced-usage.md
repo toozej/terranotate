@@ -98,15 +98,26 @@ prefixes := []string{
 }
 ```
 
-## Adjust Comment Association Range
+## Documentation Generation
 
-In `internal/parser/parser.go`, modify the range for preceding comments:
+The `generate` command allows you to create Markdown documentation directly from your Terraform resources and their annotations.
 
-```go
-// Current: within 5 lines before the resource
-if comment.Line < resource.StartLine && comment.Line >= resource.StartLine-5 {
+### Basic Generation
 
-// Change to 10 lines
-if comment.Line < resource.StartLine && comment.Line >= resource.StartLine-10 {
-}
+```bash
+terranotate generate path/to/terraform schema.yaml
+```
+
+### Advanced Options
+
+- **Output to File**: Use the `--output` flag to save the documentation to a file.
+- **Custom Schema**: Provide a specific schema to focus the documentation on certain fields.
+
+### Customizing Documentation
+
+The generator uses the `required_fields` defined in your schema to determine which columns to show in the output tables. If no fields are defined for a resource type, it defaults to showing the resource name and description.
+
+```bash
+# Example: Generate a compliance report
+terranotate generate ./production production-schema.yaml --output compliance-report.md
 ```

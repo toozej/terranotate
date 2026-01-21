@@ -42,32 +42,34 @@ go build -o terranotate cmd/terranotate/main.go
 ./terranotate parse examples/example.tf
 ```
 
-### 2. Validate - Single File Validation
+### 2. Validate - Smart Validation
 
 ```bash
-# Validate a single Terraform file against schema
+# Validate a single file, module, or entire workspace against schema
+# The tool auto-detects the structure and applies appropriate validation
 ./terranotate validate examples/example.tf examples/schema.yaml
+./terranotate validate ./examples/example1-aws-module/vpc examples/schema.yaml
+./terranotate validate ./examples/example2-aws-workspace examples/schema.yaml
 ```
 
-### 3. Validate Module - Module with Sub-modules
-
-```bash
-# Validate a Terraform module including all sub-modules
-./terranotate validate-module ./examples examples/schema.yaml
-```
-
-### 4. Validate Workspace - Entire Workspace
-
-```bash
-# Validate an entire Terraform workspace recursively
-./terranotate validate-workspace ./examples examples/schema.yaml
-```
-
-### 5. Fix - Auto-Fix Validation Issues
+### 3. Fix - Auto-Fix Validation Issues
 
 ```bash
 # Automatically fix validation issues by adding missing comments
 ./terranotate fix examples/example.tf examples/schema.yaml
+
+# Revert changes using backup files (.bak)
+./terranotate fix --revert examples/example.tf
+```
+
+### 4. Generate - Markdown Documentation
+
+```bash
+# Generate markdown documentation from Terraform resources and annotations
+./terranotate generate ./examples/example1-aws-module/vpc examples/schema.yaml
+
+# Generate and save to a file
+./terranotate generate ./infrastructure schema.yaml --output dynamic-inventory.md
 ```
 
 ## Documentation
@@ -104,29 +106,26 @@ make pre-commit
 ### 1. CI/CD Pipeline
 ```bash
 # Validate before applying
-./tfparser validate-workspace ./infrastructure schema.yaml
+./terranotate validate ./infrastructure schema.yaml
 if [ $? -eq 0 ]; then
     terraform plan
 fi
 ```
 
-### 2. Pre-commit Hook
+### 2. Documentation Generation
 ```bash
-#!/bin/bash
-# Validate all changed modules
-for module_dir in $(find . -name "*.tf" -exec dirname {} \; | sort -u); do
-    ./tfparser validate-module "$module_dir" schema.yaml || exit 1
-done
+# Automatically update infrastructure documentation
+./terranotate generate ./vpc schema.yaml --output VpcDocs.md
 ```
 
 ### 3. Module Development
 ```bash
 # Validate during module development
-./tfparser validate-module ./modules/my-new-module schema.yaml
+./terranotate validate ./modules/my-new-module schema.yaml
 ```
 
-### 4. Workspace Compliance Check
+### 4. Compliance Reporting
 ```bash
-# Check entire workspace for compliance
-./tfparser validate-workspace ./production schema.yaml > compliance-report.txt
+# Check entire workspace and generate report
+./terranotate generate ./production schema.yaml > compliance-report.md
 ```

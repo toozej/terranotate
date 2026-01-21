@@ -53,6 +53,11 @@ func (cf *CommentFixer) FixFile(filename string, resources []parser.TerraformRes
 			continue
 		}
 
+		// Check if resource already has valid comments (including placeholders like "CHANGEME")
+		if cf.hasValidComments(resource, resourceErrors) {
+			continue
+		}
+
 		// Generate fixes for this resource
 		fixes := cf.generateFixes(resource, resourceErrors)
 
@@ -60,11 +65,9 @@ func (cf *CommentFixer) FixFile(filename string, resources []parser.TerraformRes
 			continue
 		}
 
-		// Insert comment block before the resource
-		insertLine := resource.StartLine - 1
-		if insertLine < 0 {
-			insertLine = 0
-		}
+		// Insert comment block immediately before the resource declaration
+		// Skip any existing comments directly above the resource
+		insertLine := cf.findInsertionPoint(lines, resource.StartLine)
 
 		// Build comment block
 		commentBlock := cf.buildCommentBlock(fixes)
@@ -262,12 +265,20 @@ func (cf *CommentFixer) getPlaceholderValue(field string) string {
 	return "CHANGEME"
 }
 
-// buildCommentBlock builds a comment block from fixes
+// buildCommentBlock builds a comment block from fixes with fields ordered by schema
 func (cf *CommentFixer) buildCommentBlock(fixes []CommentFix) []string {
 	var lines []string
 
 	for _, fix := range fixes {
-		// Group fields by prefix (for nested fields)
+		// Get the schema rules to determine field order
+		prefixRule, exists := cf.getSchemaRuleForPrefix(fix.Prefix)
+		if !exists {
+			// Fallback to unordered if we can't find the rule
+			cf.buildUnorderedCommentBlock(fix, &lines)
+			continue
+		}
+
+		// Group fields by root vs nested
 		rootFields := make(map[string]string)
 		nestedFields := make(map[string]map[string]string)
 
@@ -288,27 +299,107 @@ func (cf *CommentFixer) buildCommentBlock(fixes []CommentFix) []string {
 			}
 		}
 
-		// Build comment lines
+		// Build comment line with ordered root fields
 		commentLine := "# " + fix.Prefix
 
-		// Add root fields
-		for field, value := range rootFields {
-			commentLine += fmt.Sprintf(" %s:%s", field, value)
+		// Add required fields first in schema order
+		for _, field := range prefixRule.RequiredFields {
+			if value, ok := rootFields[field]; ok {
+				commentLine += fmt.Sprintf(" %s:%s", field, value)
+			}
+		}
+
+		// Add optional fields in schema order
+		for _, field := range prefixRule.OptionalFields {
+			if value, ok := rootFields[field]; ok {
+				commentLine += fmt.Sprintf(" %s:%s", field, value)
+			}
 		}
 
 		lines = append(lines, commentLine)
 
-		// Add nested fields on separate lines
-		for prefix, fields := range nestedFields {
-			nestedLine := "#"
-			for field, value := range fields {
-				nestedLine += fmt.Sprintf(" %s.%s:%s", prefix, field, value)
+		// Add nested fields on separate lines in schema order
+		for nestedPath, nestedRule := range prefixRule.NestedFields {
+			if fieldMap, ok := nestedFields[nestedPath]; ok && len(fieldMap) > 0 {
+				nestedLine := "#"
+
+				// Add required nested fields first
+				for _, field := range nestedRule.RequiredFields {
+					if value, ok := fieldMap[field]; ok {
+						nestedLine += fmt.Sprintf(" %s.%s:%s", nestedPath, field, value)
+					}
+				}
+
+				// Add optional nested fields
+				for _, field := range nestedRule.OptionalFields {
+					if value, ok := fieldMap[field]; ok {
+						nestedLine += fmt.Sprintf(" %s.%s:%s", nestedPath, field, value)
+					}
+				}
+
+				if len(nestedLine) > 1 { // More than just "#"
+					lines = append(lines, nestedLine)
+				}
 			}
-			lines = append(lines, nestedLine)
 		}
 	}
 
 	return lines
+}
+
+// getSchemaRuleForPrefix retrieves the prefix rule from the schema
+func (cf *CommentFixer) getSchemaRuleForPrefix(prefix string) (validator.PrefixRule, bool) {
+	// Check global rules first
+	if rule, ok := cf.schema.Global.PrefixRules[prefix]; ok {
+		return rule, true
+	}
+
+	// Could also check resource-specific rules if needed
+	// but for now we use global rules
+	return validator.PrefixRule{}, false
+}
+
+// buildUnorderedCommentBlock is a fallback for when schema rules aren't found
+func (cf *CommentFixer) buildUnorderedCommentBlock(fix CommentFix, lines *[]string) {
+	// Group fields by prefix (for nested fields)
+	rootFields := make(map[string]string)
+	nestedFields := make(map[string]map[string]string)
+
+	for field, value := range fix.Fields {
+		if strings.Contains(field, ".") {
+			// Nested field
+			parts := strings.SplitN(field, ".", 2)
+			prefix := parts[0]
+			rest := parts[1]
+
+			if nestedFields[prefix] == nil {
+				nestedFields[prefix] = make(map[string]string)
+			}
+			nestedFields[prefix][rest] = value
+		} else {
+			// Root field
+			rootFields[field] = value
+		}
+	}
+
+	// Build comment lines
+	commentLine := "# " + fix.Prefix
+
+	// Add root fields
+	for field, value := range rootFields {
+		commentLine += fmt.Sprintf(" %s:%s", field, value)
+	}
+
+	*lines = append(*lines, commentLine)
+
+	// Add nested fields on separate lines
+	for prefix, fields := range nestedFields {
+		nestedLine := "#"
+		for field, value := range fields {
+			nestedLine += fmt.Sprintf(" %s.%s:%s", prefix, field, value)
+		}
+		*lines = append(*lines, nestedLine)
+	}
 }
 
 // insertLines inserts new lines at the specified position
@@ -328,6 +419,101 @@ func (cf *CommentFixer) insertLines(lines []string, position int, newLines []str
 	result = append(result, lines[position:]...)
 
 	return result
+}
+
+// hasValidComments checks if a resource already has valid comments that satisfy the schema
+// This includes placeholders like "CHANGEME" which are considered valid
+func (cf *CommentFixer) hasValidComments(resource parser.TerraformResource, errors []validator.ValidationError) bool {
+	// If there are validation errors for this resource, comments are not valid
+	// However, we need to check if the errors are only about missing prefixes/fields
+	// If comments exist with placeholder values (like "CHANGEME"), they're considered valid
+
+	// Check if any of the resource's comments match the schema structure
+	for _, comment := range resource.PrecedingComments {
+		// Parse the comment to see if it has the expected prefix format
+		if strings.HasPrefix(comment.Raw, "# @") || strings.HasPrefix(comment.Raw, "# terraform:") {
+			// This looks like a managed comment - check if it has fields
+			if strings.Contains(comment.Raw, ":") {
+				// Comment has fields, consider it valid even if values are placeholders
+				// Only skip if ALL required prefixes have at least some comment
+				return cf.allPrefixesHaveComments(resource, errors)
+			}
+		}
+	}
+
+	return false
+}
+
+// allPrefixesHaveComments checks if all required prefixes have at least some comment
+func (cf *CommentFixer) allPrefixesHaveComments(resource parser.TerraformResource, errors []validator.ValidationError) bool {
+	// Get list of required prefixes from errors
+	requiredPrefixes := make(map[string]bool)
+	for _, err := range errors {
+		if strings.Contains(err.Message, "Missing required comment prefix:") {
+			prefix := strings.TrimSpace(strings.TrimPrefix(err.Message, "Missing required comment prefix:"))
+			requiredPrefixes[prefix] = true
+		}
+	}
+
+	// If there are missing prefix errors, comments are not valid
+	if len(requiredPrefixes) > 0 {
+		return false
+	}
+
+	// Check if all errors are only about field values (not structure)
+	// If so, the comment structure is valid, just values need updating
+	for _, err := range errors {
+		if strings.Contains(err.Message, "Missing required comment prefix:") {
+			return false
+		}
+		if strings.Contains(err.Message, "Missing required field") {
+			return false
+		}
+	}
+
+	// All structural requirements are met
+	return true
+}
+
+// findInsertionPoint finds where to insert comments for a resource
+// It places comments immediately above the resource declaration, skipping any existing comments
+func (cf *CommentFixer) findInsertionPoint(lines []string, resourceStartLine int) int {
+	// Start from the line before the resource
+	insertLine := resourceStartLine - 1
+	if insertLine < 0 {
+		return 0
+	}
+
+	// Scan backwards to skip existing non-managed comments
+	// We want to insert our managed comments right before the resource declaration
+	// but after any existing user comments
+	for insertLine > 0 {
+		trimmed := strings.TrimSpace(lines[insertLine])
+
+		// If it's a blank line or existing managed comment, place our comments here
+		if trimmed == "" {
+			// Keep the blank line, insert before it
+			return insertLine
+		}
+
+		// If it's a user comment (not managed), we want to insert AFTER it
+		if strings.HasPrefix(trimmed, "#") {
+			// Check if it's a managed comment
+			if strings.HasPrefix(trimmed, "# @") || strings.HasPrefix(trimmed, "# terraform:") {
+				// Skip managed comments
+				insertLine--
+				continue
+			}
+			// It's a user comment, insert after it
+			return insertLine + 1
+		}
+
+		// If it's code, insert here
+		return insertLine + 1
+	}
+
+	// Insert at the beginning if we've scanned to the top
+	return 0
 }
 
 // getApplicableRules returns applicable rules for a resource type

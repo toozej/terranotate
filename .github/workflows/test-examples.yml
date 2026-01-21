@@ -25,7 +25,7 @@ jobs:
         run: make local-build
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: terranotate-binary
           path: out/terranotate

@@ -88,6 +88,12 @@ repos:
       - id: checkmake
         files: Makefile
 
+  # lint GitHub Actions workflows
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.10
+    hooks:
+      - id: actionlint
+
   # goreleaser config check
   - repo: https://github.com/trussworks/pre-commit-hooks
     rev: v2.0.0
@@ -99,7 +105,7 @@ repos:
     rev: 'v1.89.0'
     hooks:
       - id: semgrep
-        language_version: python3.12
+        #language_version: python3.12
         # See https://semgrep.dev/explore to select a ruleset and copy its URL
         args: ['--config', 'auto', '--error', '--skip-unknown-extensions', '--quiet']
         exclude: '\.tf$'

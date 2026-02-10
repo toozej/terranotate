@@ -31,4 +31,5 @@ FROM scratch
 # Copy our static executable.
 COPY --from=build /go/terranotate/terranotate /go/bin/terranotate
 # Run the binary.
+USER non-root
 ENTRYPOINT ["/go/bin/terranotate"]

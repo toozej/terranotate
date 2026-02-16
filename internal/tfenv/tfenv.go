@@ -21,7 +21,7 @@ func EnsureVersion(version string) error {
 	fmt.Printf("Ensuring Terraform version %s is installed...\n", version)
 
 	// Install the version
-	installCmd := exec.Command("tfenv", "install", version)
+	installCmd := exec.Command("tfenv", "install", version) // #nosec G204 -- version comes from trusted configuration
 	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
 	if err := installCmd.Run(); err != nil {
@@ -29,7 +29,7 @@ func EnsureVersion(version string) error {
 	}
 
 	// Use the version
-	useCmd := exec.Command("tfenv", "use", version)
+	useCmd := exec.Command("tfenv", "use", version) // #nosec G204 -- version comes from trusted configuration
 	useCmd.Stdout = os.Stdout
 	useCmd.Stderr = os.Stderr
 	if err := useCmd.Run(); err != nil {

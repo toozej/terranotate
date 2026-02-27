@@ -75,7 +75,6 @@ go build -o terranotate cmd/terranotate/main.go
 ## Documentation
 
 - [API Usage](docs/api-usage.md)
-- [CI/CD Integration](docs/ci-cd.md)
 - [Advanced Usage & Customization](docs/advanced-usage.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
@@ -84,7 +83,7 @@ go build -o terranotate cmd/terranotate/main.go
 This project uses a standard Go project layout.
 
 ### Prerequisites
-- Go 1.25+
+- Go
 
 ### Build
 ```bash

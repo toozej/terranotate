@@ -31,7 +31,7 @@ func (cf *CommentFixer) FixFile(filename string, resources []parser.TerraformRes
 	if err != nil {
 		return "", 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	content, err := io.ReadAll(f)
 	if err != nil {
@@ -535,14 +535,14 @@ func CopyFile(fs afero.Fs, src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	// #nosec G304 - Destination path derived from user input
 	destFile, err := fs.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, sourceFile)
 	/*

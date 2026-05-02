@@ -56,7 +56,7 @@ func (cp *CommentParser) ParseFile(filename string) ([]TerraformResource, error)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	src, err := io.ReadAll(f)
 	if err != nil {

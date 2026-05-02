@@ -26,7 +26,7 @@ func (mg *MarkdownGenerator) GenerateDocumentation(moduleName string, resources 
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("# %s - Resource Documentation\n\n", moduleName))
+	fmt.Fprintf(&sb, "# %s - Resource Documentation\n\n", moduleName)
 	sb.WriteString("This document provides an overview of all Terraform resources with their metadata annotations.\n\n")
 
 	// Group resources by type
@@ -41,8 +41,8 @@ func (mg *MarkdownGenerator) GenerateDocumentation(moduleName string, resources 
 
 	// Summary
 	sb.WriteString("---\n\n")
-	sb.WriteString(fmt.Sprintf("**Total Resources:** %d\n\n", len(resources)))
-	sb.WriteString(fmt.Sprintf("**Resource Types:** %d\n", len(resourcesByType)))
+	fmt.Fprintf(&sb, "**Total Resources:** %d\n\n", len(resources))
+	fmt.Fprintf(&sb, "**Resource Types:** %d\n", len(resourcesByType))
 
 	return sb.String()
 }
@@ -70,7 +70,7 @@ func (mg *MarkdownGenerator) getSortedResourceTypes(resourcesByType map[string][
 func (mg *MarkdownGenerator) generateTableForType(resourceType string, resources []parser.TerraformResource) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("## %s\n\n", resourceType))
+	fmt.Fprintf(&sb, "## %s\n\n", resourceType)
 
 	// Get the required fields from schema
 	fields := mg.getRequiredFields(resourceType)
@@ -82,14 +82,14 @@ func (mg *MarkdownGenerator) generateTableForType(resourceType string, resources
 
 		for _, resource := range resources {
 			desc := mg.extractDescription(resource)
-			sb.WriteString(fmt.Sprintf("| `%s` | %s |\n", resource.Name, desc))
+			fmt.Fprintf(&sb, "| `%s` | %s |\n", resource.Name, desc)
 		}
 	} else {
 		// Create table with schema fields as columns
 		// Header
 		sb.WriteString("| Resource | ")
 		for _, field := range fields {
-			sb.WriteString(fmt.Sprintf("%s | ", field))
+			fmt.Fprintf(&sb, "%s | ", field)
 		}
 		sb.WriteString("\n")
 
@@ -102,10 +102,10 @@ func (mg *MarkdownGenerator) generateTableForType(resourceType string, resources
 
 		// Rows
 		for _, resource := range resources {
-			sb.WriteString(fmt.Sprintf("| `%s` |", resource.Name))
+			fmt.Fprintf(&sb, "| `%s` |", resource.Name)
 			for _, field := range fields {
 				value := mg.extractFieldValue(resource, field)
-				sb.WriteString(fmt.Sprintf(" %s |", value))
+				fmt.Fprintf(&sb, " %s |", value)
 			}
 			sb.WriteString("\n")
 		}

@@ -87,7 +87,7 @@ func NewSchemaValidator(fs afero.Fs, schemaFile string) (*SchemaValidator, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to read schema file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := io.ReadAll(f)
 	if err != nil {

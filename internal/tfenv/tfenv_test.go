@@ -18,11 +18,11 @@ func TestEnsureVersion_TfenvNotInstalled(t *testing.T) {
 	// Save original PATH
 	originalPath := os.Getenv("PATH")
 	defer func() {
-		os.Setenv("PATH", originalPath)
+		_ = os.Setenv("PATH", originalPath)
 	}()
 
 	// Set PATH to empty to simulate tfenv not being installed
-	os.Setenv("PATH", "")
+	_ = os.Setenv("PATH", "")
 
 	err := EnsureVersion("1.5.0")
 	if err == nil {

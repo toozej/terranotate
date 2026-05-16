@@ -1,5 +1,5 @@
 # setup project and deps
-FROM golang:1.26-trixie AS init
+FROM golang:1.26-bookworm AS init
 
 WORKDIR /go/terranotate/
 
@@ -22,11 +22,10 @@ ARG LDFLAGS
 RUN CGO_ENABLED=0 go build -ldflags="${LDFLAGS}"
 
 # runtime image including CA certs and tzdata
-FROM gcr.io/distroless/static-debian13:nonroot
+FROM gcr.io/distroless/static-debian12:latest
 # Copy our static executable.
 COPY --from=build /go/terranotate/terranotate /go/bin/terranotate
 # Expose port for publishing as web service
 # EXPOSE 8081
 # Run the binary.
-USER nonroot
 ENTRYPOINT ["/go/bin/terranotate"]

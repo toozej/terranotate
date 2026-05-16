@@ -13,9 +13,7 @@ RUN go vet ./...
 
 # run tests
 FROM init AS test
-RUN go test -coverprofile c.out -v ./... && \
-	echo "Statements missing coverage" && \
-	grep -v -e " 1$" c.out
+RUN go test -coverprofile c.out -v ./...
 
 # build binary
 FROM init AS build
